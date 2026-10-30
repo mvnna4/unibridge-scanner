@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UNIBRIDGE Scanner</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
+
   <style>
     * { box-sizing: border-box; }
 
@@ -95,7 +96,8 @@
     startButton.addEventListener('click', async function() {
       if (running) return;
 
-      if (!window.isSecureContext || !navigator.mediaDevices ||
+      if (!window.isSecureContext ||
+          !navigator.mediaDevices ||
           !navigator.mediaDevices.getUserMedia) {
         result.textContent =
           'Камера недоступна. Откройте страницу через HTTPS в Safari.';
@@ -104,7 +106,8 @@
       }
 
       if (typeof Html5Qrcode === 'undefined') {
-        result.textContent = 'Не удалось загрузить библиотеку сканера.';
+        result.textContent =
+          'Не удалось загрузить библиотеку сканера.';
         result.className = 'error';
         return;
       }
@@ -126,20 +129,36 @@
           },
           async function(decodedText) {
             if (completed) return;
+
             completed = true;
 
-            result.textContent = 'Считан трек-код: ' + decodedText;
+            result.textContent =
+              'Считан трек-код: ' + decodedText;
             result.className = 'success';
 
-            await stopCamera();
+            try {
+              await stopCamera();
 
-            // Возвращаем результат в основное приложение.
-            if (window.opener && !window.opener.closed) {
-              window.opener.postMessage({
-                type: 'UNIBRIDGE_SCAN_RESULT',
-                track: decodedText
-              }, '*');
-              result.textContent += ' — возвращаем в UNIBRIDGE.';
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({
+                  type: 'UNIBRIDGE_SCAN_RESULT',
+                  track: decodedText
+                }, 'https://script.google.com');
+
+                result.textContent =
+                  'Трек-код передан в UNIBRIDGE. Можно вернуться в предыдущую вкладку.';
+
+                setTimeout(function() {
+                  window.close();
+                }, 700);
+              } else {
+                result.textContent =
+                  'Трек считан, но основное приложение не найдено. Вернитесь в UNIBRIDGE.';
+              }
+            } catch (error) {
+              result.textContent =
+                'Ошибка передачи трек-кода: ' + error;
+              result.className = 'error';
             }
           }
         );
@@ -147,7 +166,9 @@
         running = true;
         startButton.disabled = true;
         stopButton.disabled = false;
-        result.textContent = 'Камера включена. Наведите её на штрихкод.';
+
+        result.textContent =
+          'Камера включена. Наведите её на штрихкод.';
         result.className = '';
 
       } catch (error) {
@@ -168,6 +189,12 @@
     }
 
     stopButton.addEventListener('click', stopCamera);
+
+    window.addEventListener('beforeunload', function() {
+      if (scanner && running) {
+        scanner.stop().catch(function() {});
+      }
+    });
   </script>
 </body>
 </html>
