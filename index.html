@@ -143,18 +143,21 @@
                 window.opener.postMessage({
                   type: 'UNIBRIDGE_SCAN_RESULT',
                   track: decodedText
-                }, 'https://script.google.com');
+                }, '*');
 
                 result.textContent =
-                  'Трек-код передан в UNIBRIDGE. Можно вернуться в предыдущую вкладку.';
+                  'Трек-код передан в UNIBRIDGE. Возвращаемся...';
 
                 setTimeout(function() {
                   window.close();
                 }, 700);
+
               } else {
                 result.textContent =
                   'Трек считан, но основное приложение не найдено. Вернитесь в UNIBRIDGE.';
+                result.className = 'error';
               }
+
             } catch (error) {
               result.textContent =
                 'Ошибка передачи трек-кода: ' + error;
