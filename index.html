@@ -1,0 +1,173 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UNIBRIDGE Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #eef2f7;
+      font-family: Arial, sans-serif;
+      color: #243247;
+    }
+
+    .card {
+      max-width: 480px;
+      margin: 30px auto;
+      padding: 24px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 5px 25px #00000010;
+    }
+
+    h1 {
+      color: #17365d;
+      text-align: center;
+    }
+
+    p { line-height: 1.5; }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 9px;
+      background: #17365d;
+      color: white;
+      font-size: 16px;
+    }
+
+    button:disabled { opacity: .5; }
+
+    #reader {
+      width: 100%;
+      margin-top: 18px;
+      overflow: hidden;
+    }
+
+    #result {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 8px;
+      background: #f1f5f9;
+      overflow-wrap: anywhere;
+      font-weight: bold;
+    }
+
+    .muted { color: #64748b; }
+    .error { color: #b42318; }
+    .success { color: #167044; }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <h1>UNIBRIDGE</h1>
+    <h2>Сканирование посылки</h2>
+
+    <p class="muted">
+      Наведите камеру на оригинальный штрихкод посылки.
+    </p>
+
+    <button id="startButton">Открыть камеру</button>
+    <button id="stopButton" disabled>Остановить камеру</button>
+
+    <div id="reader"></div>
+    <div id="result">Ожидание сканирования...</div>
+  </main>
+
+  <script>
+    let scanner = null;
+    let running = false;
+    let completed = false;
+
+    const result = document.getElementById('result');
+    const startButton = document.getElementById('startButton');
+    const stopButton = document.getElementById('stopButton');
+
+    startButton.addEventListener('click', async function() {
+      if (running) return;
+
+      if (!window.isSecureContext || !navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia) {
+        result.textContent =
+          'Камера недоступна. Откройте страницу через HTTPS в Safari.';
+        result.className = 'error';
+        return;
+      }
+
+      if (typeof Html5Qrcode === 'undefined') {
+        result.textContent = 'Не удалось загрузить библиотеку сканера.';
+        result.className = 'error';
+        return;
+      }
+
+      completed = false;
+      scanner = new Html5Qrcode('reader');
+
+      try {
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: function(width, height) {
+              return {
+                width: Math.min(width, 300),
+                height: Math.min(height, 140)
+              };
+            }
+          },
+          async function(decodedText) {
+            if (completed) return;
+            completed = true;
+
+            result.textContent = 'Считан трек-код: ' + decodedText;
+            result.className = 'success';
+
+            await stopCamera();
+
+            // Возвращаем результат в основное приложение.
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage({
+                type: 'UNIBRIDGE_SCAN_RESULT',
+                track: decodedText
+              }, '*');
+              result.textContent += ' — возвращаем в UNIBRIDGE.';
+            }
+          }
+        );
+
+        running = true;
+        startButton.disabled = true;
+        stopButton.disabled = false;
+        result.textContent = 'Камера включена. Наведите её на штрихкод.';
+        result.className = '';
+
+      } catch (error) {
+        result.textContent =
+          'Не удалось открыть камеру: ' + error;
+        result.className = 'error';
+      }
+    });
+
+    async function stopCamera() {
+      if (scanner && running) {
+        await scanner.stop();
+        running = false;
+      }
+
+      startButton.disabled = false;
+      stopButton.disabled = true;
+    }
+
+    stopButton.addEventListener('click', stopCamera);
+  </script>
+</body>
+</html>
